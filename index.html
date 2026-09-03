@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="description" content="SchoolWear makes it simple to reserve official school uniforms and merchandise.">
+	<title>SchoolWear | Merchandise Store</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+	<header class="site-header">
+		<div class="container nav-wrap">
+			<a class="brand" href="index.html" aria-label="SchoolWear home">
+				<span class="brand-mark" aria-hidden="true">C</span>
+				<span class="brand-copy">
+					<strong>CampusCart</strong>
+					<small>SCHOOL MERCHANDISE STORE</small>
+				</span>
+			</a>
+
+			<button class="menu-toggle" type="button" aria-expanded="false" aria-controls="site-navigation">
+				<span class="sr-only">Toggle navigation</span>
+				<span></span><span></span><span></span>
+			</button>
+
+			<nav class="site-nav" id="site-navigation" aria-label="Primary navigation">
+				<a class="active" href="index.html">Home</a>
+				<a href="#benefits">Catalog</a>
+				<a href="#benefits">Categories</a>
+				<a href="#footer">My Reservations</a>
+			</nav>
+
+			<div class="nav-actions" aria-label="Quick actions">
+				<button class="icon-button" type="button" data-action="search" aria-label="Search">
+					<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 5 5"></path></svg>
+				</button>
+				<button class="icon-button cart-button" type="button" data-action="cart" aria-label="Cart">
+					<svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 4h2l2.2 11.2a2 2 0 0 0 2 1.6h7.9a2 2 0 0 0 1.9-1.5L20.5 8H6"></path><circle cx="9" cy="20" r="1"></circle><circle cx="18" cy="20" r="1"></circle></svg>
+					<span class="cart-count">0</span>
+				</button>
+				<button class="icon-button" type="button" data-action="profile" aria-label="Profile">
+					<svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"></circle><path d="M5 20a7 7 0 0 1 14 0"></path></svg>
+				</button>
+			</div>
+		</div>
+	</header>
+
+	<section class="announcement" aria-label="Merchandise announcement">
+		<p class="sr-only">New stock just landed. Upcoming varsity jerseys arrive soon.</p>
+		<div class="announcement-window" aria-hidden="true">
+			<div class="announcement-track">
+				<span>NEW P.E STOCK AVAILABLE</span><b>-</b><span>UPCOMING INTRAMURAL JERSEYS ARRIVE SOON</span><b>-</b>
+				<span>NEW P.E STOCK AVAILABLE</span><b>-</b><span>NEW DEPARTMENTAL SHIRT THIS DECEMBER</span><b>-</b>
+
+			</div>
+		</div>
+	</section>
+
+	<main>
+		<section class="hero container" aria-labelledby="hero-title">
+			<div class="hero-copy">
+				<p class="eyebrow"><span></span> Made for your school community</p>
+				<h1 id="hero-title" aria-label="Your School. Your Style. One Place.">
+					<span class="typing-line" data-text="Your School." aria-hidden="true"></span>
+					<span class="typing-line" data-text="Your Style." aria-hidden="true"></span>
+					<em class="typing-line" data-text="One Place." aria-hidden="true"></em>
+				</h1>
+				<p class="hero-description">Reserve your uniforms and school merchandise items easily.</p>
+				<a class="button button-primary" href="#benefits">Shop Now <span aria-hidden="true">&rarr;</span></a>
+				<div class="hero-note"><span class="note-icon" aria-hidden="true">✓</span> Official items, ready when you are</div>
+			</div>
+
+			<div class="hero-visual" aria-label="A neatly presented school uniform">
+				<div class="visual-kicker">THE EVERYDAY<br><strong>ESSENTIAL</strong></div>
+				<div class="sun-shape"></div>
+				<div class="uniform">
+					<div class="hanger" aria-hidden="true"></div>
+					<div class="shirt-collar left-collar"></div>
+					<div class="shirt-collar right-collar"></div>
+					<div class="shirt"></div>
+					<div class="blazer left-blazer"><span class="sleeve-button"></span></div>
+					<div class="blazer right-blazer"><span class="sleeve-button"></span></div>
+					<div class="lapel left-lapel"></div>
+					<div class="lapel right-lapel"></div>
+					<div class="pocket"><span>SC</span></div>
+					<div class="tie"></div>
+					<div class="blazer-button button-one"></div>
+					<div class="blazer-button button-two"></div>
+				</div>
+				<div class="visual-caption"><span>01</span><span>School uniform collection</span></div>
+			</div>
+		</section>
+
+		<section class="benefits" id="benefits" aria-labelledby="benefits-title">
+			<div class="container">
+				<div class="section-heading">
+					<p class="eyebrow"><span></span> Why CampusCart</p>
+					<h2 id="benefits-title">The easy way to<br><em>wear your school pride.</em></h2>
+				</div>
+				<div class="benefit-grid">
+					<article class="benefit-card">
+						<div class="benefit-icon">✦</div>
+						<div><h3>Official School Items</h3><p>Trusted and quality merchandise.</p></div>
+						<span class="card-number">01</span>
+					</article>
+					<article class="benefit-card">
+						<div class="benefit-icon">↗</div>
+						<div><h3>Easy Reservation</h3><p>Reserve in a few simple steps.</p></div>
+						<span class="card-number">02</span>
+					</article>
+					<article class="benefit-card">
+						<div class="benefit-icon">⌁</div>
+						<div><h3>Quick Pickup</h3><p>Claim your items at the scheduled time.</p></div>
+						<span class="card-number">03</span>
+					</article>
+				</div>
+			</div>
+		</section>
+	</main>
+
+	<footer class="site-footer" id="footer">
+		<div class="container footer-grid">
+			<div><a class="footer-brand" href="index.html">CampusCart</a><p>Making school essentials simple,<br>accessible, and yours.</p></div>
+			<div class="footer-links"><a href="index.html">Home</a><a href="#benefits">Catalog</a><a href="#benefits">Categories</a><a href="#footer">Reservations</a></div>
+			<p class="copyright">&copy; 2024 CampusCart<br>Built for your school community.</p>
+		</div>
+	</footer>
+
+	<div class="toast" role="status" aria-live="polite"></div>
+	<script src="scripts.js"></script>
+</body>
+</html>
