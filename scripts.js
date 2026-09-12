@@ -126,6 +126,9 @@ const catalogProducts = [
 	{ id: 5, name: 'Departmental Shirt', category: 'Uniforms', price: 300, stock: 6, badge: '', mark: 'DS' }
 ];
 
+const CART_STORAGE_KEY = 'campusCart';
+const cartSizes = ['XS', 'S', 'M', 'L', 'XL'];
+
 const catalogState = {
 	category: 'All',
 	query: ''
@@ -138,6 +141,48 @@ function escapeHtml(value = '') {
 		.replace(/>/g, '&gt;')
 		.replace(/"/g, '&quot;')
 		.replace(/'/g, '&#039;');
+}
+
+function getCart() {
+	try {
+		const savedCart = JSON.parse(localStorage.getItem(CART_STORAGE_KEY));
+		return Array.isArray(savedCart) ? savedCart : [];
+	} catch (error) {
+		return [];
+	}
+}
+
+function saveCart(cart) {
+	localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
+	updateCartCount();
+}
+
+function updateCartCount() {
+	const itemCount = getCart().reduce((total, item) => total + item.quantity, 0);
+	document.querySelectorAll('.cart-count').forEach((count) => {
+		count.textContent = itemCount;
+	});
+}
+
+function addToCart(product, size, quantity) {
+	const cart = getCart();
+	const existingItem = cart.find((item) => item.id === product.id && item.size === size);
+
+	if (existingItem) {
+		existingItem.quantity += quantity;
+	} else {
+		cart.push({
+			id: product.id,
+			name: product.name,
+			category: product.category,
+			mark: product.mark,
+			price: product.price,
+			size,
+			quantity
+		});
+	}
+
+	saveCart(cart);
 }
 
 function getVisibleCatalogProducts() {
@@ -169,6 +214,9 @@ function renderCatalog() {
 				<div class="product-meta">
 					<span class="product-price">₱${product.price.toLocaleString()}</span>
 					<span class="product-stock ${product.stock <= 8 ? 'low' : ''}">${product.stock} left</span>
+				</div>
+				<div class="product-actions">
+					<button class="button-small add-to-cart" type="button" data-product-id="${product.id}">Add to cart</button>
 				</div>
 			</div>
 		</article>
@@ -210,6 +258,44 @@ function renderCatalog() {
 			renderCatalog();
 		});
 	}
+
+	catalogContent.querySelectorAll('.add-to-cart').forEach((button) => {
+		button.addEventListener('click', () => openAddToCartDialog(Number(button.dataset.productId)));
+	});
+}
+
+function openAddToCartDialog(productId) {
+	const product = catalogProducts.find((item) => item.id === productId);
+	if (!product) return;
+
+	const dialog = document.createElement('div');
+	dialog.className = 'cart-dialog-backdrop';
+	dialog.innerHTML = `
+		<div class="cart-dialog" role="dialog" aria-modal="true" aria-labelledby="add-to-cart-title">
+			<button class="cart-dialog-close" type="button" aria-label="Close">&times;</button>
+			<p class="eyebrow"><span></span>${escapeHtml(product.category)}</p>
+			<h2 id="add-to-cart-title">Add ${escapeHtml(product.name)}</h2>
+			<p class="dialog-price">₱${product.price.toLocaleString()}</p>
+			<label class="dialog-label" for="product-size">Size</label>
+			<select id="product-size" class="size-select">${cartSizes.map((size) => `<option value="${size}">${size}</option>`).join('')}</select>
+			<label class="dialog-label" for="product-quantity">Quantity</label>
+			<input id="product-quantity" class="quantity-input" type="number" min="1" max="${product.stock}" value="1">
+			<button class="button button-primary button-block confirm-add" type="button">Add to cart</button>
+		</div>`;
+
+	document.body.appendChild(dialog);
+	const closeDialog = () => dialog.remove();
+	dialog.querySelector('.cart-dialog-close').addEventListener('click', closeDialog);
+	dialog.addEventListener('click', (event) => {
+		if (event.target === dialog) closeDialog();
+	});
+	dialog.querySelector('.confirm-add').addEventListener('click', () => {
+		const quantityInput = dialog.querySelector('.quantity-input');
+		const quantity = Math.max(1, Math.min(product.stock, Number(quantityInput.value) || 1));
+		addToCart(product, dialog.querySelector('.size-select').value, quantity);
+		closeDialog();
+		showToast(`${product.name} added to cart.`);
+	});
 }
 
 // CREATE FOOTER
@@ -229,6 +315,7 @@ renderHero();
 renderBenefits();
 renderCatalog();
 renderFooter();
+updateCartCount();
 
 // TYPING ANIMATION
 const menuToggle = document.querySelector('.menu-toggle');
@@ -279,18 +366,75 @@ document.querySelectorAll('.site-nav a').forEach((link) => {
 });
 
 // BUTTON FEEDBACK
+function showToast(message) {
+	if (!toast) return;
+	toast.textContent = message;
+	toast.classList.add('visible');
+	window.clearTimeout(toast.hideTimer);
+	toast.hideTimer = window.setTimeout(() => toast.classList.remove('visible'), 2600);
+}
+
 document.querySelectorAll('[data-action]').forEach((button) => {
 	button.addEventListener('click', function () {
+		if (button.dataset.action === 'cart') {
+			window.location.href = 'cart.html';
+			return;
+		}
+
 		const messages = {
 			search: 'Search will be available in the catalog.',
-			cart: 'Your cart is ready for your first item.',
 			profile: 'Profile features are coming soon.'
 		};
-		toast.textContent = messages[button.dataset.action];
-		toast.classList.add('visible');
-		window.clearTimeout(toast.hideTimer);
-		toast.hideTimer = window.setTimeout(() => toast.classList.remove('visible'), 2600);
+		showToast(messages[button.dataset.action]);
 	});
 });
+
+if (window.location.pathname.endsWith('cart.html')) {
+	const cartContent = document.getElementById('cart-content');
+
+	function renderCartPage() {
+		if (!cartContent) return;
+		const cart = getCart();
+		const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+		if (!cart.length) {
+			cartContent.innerHTML = `
+				<div class="cart-page-header"><div><p class="eyebrow"><span></span>Your selection</p><h1 id="cart-title">Your cart</h1></div></div>
+				<div class="cart-page-empty"><div class="empty-cart-mark">C</div><h2>Your cart is empty</h2><p>Browse the catalog and add school essentials to get started.</p><a class="button button-primary" href="catalog.html">Browse catalog <span aria-hidden="true">&rarr;</span></a></div>`;
+			return;
+		}
+
+		cartContent.innerHTML = `
+			<div class="cart-page-header"><div><p class="eyebrow"><span></span>Your selection</p><h1 id="cart-title">Your cart</h1></div><p>${cart.length} product${cart.length === 1 ? '' : 's'} selected</p></div>
+			<div class="cart-page-layout">
+				<div class="cart-page-items">${cart.map((item, index) => `
+					<article class="cart-page-item">
+						<div class="cart-page-image" role="img" aria-label="${escapeHtml(item.name)} image">${escapeHtml(item.mark)}</div>
+						<div class="cart-page-item-info"><div><p class="product-category">${escapeHtml(item.category)}</p><h2>${escapeHtml(item.name)}</h2><p class="cart-page-size">Size: ${escapeHtml(item.size)}</p></div><button class="cart-item-remove" type="button" data-remove-index="${index}">Remove</button></div>
+						<div class="cart-page-item-bottom"><div class="quantity-control"><button type="button" aria-label="Decrease quantity" data-change-index="${index}" data-change="-1">−</button><span>${item.quantity}</span><button type="button" aria-label="Increase quantity" data-change-index="${index}" data-change="1">+</button></div><strong>₱${(item.price * item.quantity).toLocaleString()}</strong></div>
+					</article>`).join('')}</div>
+				<aside class="cart-page-summary"><h2>Order summary</h2><div class="cart-summary-row"><span>Items</span><span>${cart.reduce((sum, item) => sum + item.quantity, 0)}</span></div><div class="cart-summary-row total"><span>Total</span><span>₱${total.toLocaleString()}</span></div><button class="button button-primary button-block" type="button" data-reservation>Proceed to Reservation <span aria-hidden="true">&rarr;</span></button><p class="summary-note">Reservation details will be collected in the next step.</p></aside>
+			</div>`;
+
+		cartContent.querySelectorAll('[data-change-index]').forEach((button) => {
+			button.addEventListener('click', () => {
+				const item = cart[Number(button.dataset.changeIndex)];
+				item.quantity = Math.max(1, item.quantity + Number(button.dataset.change));
+				saveCart(cart);
+				renderCartPage();
+			});
+		});
+		cartContent.querySelectorAll('[data-remove-index]').forEach((button) => {
+			button.addEventListener('click', () => {
+				cart.splice(Number(button.dataset.removeIndex), 1);
+				saveCart(cart);
+				renderCartPage();
+			});
+		});
+		cartContent.querySelector('[data-reservation]')?.addEventListener('click', () => showToast('Reservation is coming soon.'));
+	}
+
+	renderCartPage();
+}
 
 
