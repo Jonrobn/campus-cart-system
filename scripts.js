@@ -119,16 +119,22 @@ function renderBenefits() {
 
 // CATALOG DATA
 const catalogProducts = [
-	{ id: 1, name: 'School Uniform', category: 'Uniforms', price: 1200, stock: 12, badge: '', mark: 'SU' },
-	{ id: 2, name: 'Jersey', category: 'Athletics', price: 400, stock: 8, badge: 'Limited', mark: 'JR' },
-	{ id: 3, name: 'ID Lace', category: 'Accessories', price: 150, stock: 20, badge: '', mark: 'ID' },
-	{ id: 4, name: 'P.E. Uniform', category: 'Uniforms', price: 800, stock: 10, badge: '', mark: 'PE' },
-	{ id: 5, name: 'Departmental Shirt', category: 'Uniforms', price: 300, stock: 6, badge: '', mark: 'DS' }
+	{ id: 1, name: 'School Uniform', category: 'Uniforms', price: 1200, stock: 12, badge: '', mark: 'SU', sizes: ['XS', 'S', 'M', 'L', 'XL'] },
+	{ id: 2, name: 'Jersey', category: 'Athletics', price: 400, stock: 8, badge: 'Limited', mark: 'JR', sizes: ['S', 'M', 'L', 'XL'] },
+	{ id: 3, name: 'ID Lace', category: 'Accessories', price: 150, stock: 20, badge: '', mark: 'ID', sizes: ['One Size'] },
+	{ id: 4, name: 'P.E. Uniform', category: 'Uniforms', price: 800, stock: 10, badge: '', mark: 'PE', sizes: ['XS', 'S', 'M', 'L', 'XL'] },
+	{ id: 5, name: 'Departmental Shirt', category: 'Uniforms', price: 300, stock: 6, badge: '', mark: 'DS', sizes: ['S', 'M', 'L', 'XL'] }
 ];
 
 const CART_STORAGE_KEY = 'campusCart';
 const RESERVATIONS_STORAGE_KEY = 'campusReservations';
-const cartSizes = ['XS', 'S', 'M', 'L', 'XL'];
+
+function getAvailableSizes(product) {
+	if (Array.isArray(product?.sizes) && product.sizes.length) {
+		return product.sizes;
+	}
+	return ['XS', 'S', 'M', 'L', 'XL'];
+}
 
 const catalogState = {
 	category: 'All',
@@ -300,7 +306,7 @@ function openAddToCartDialog(productId) {
 			<h2 id="add-to-cart-title">Add ${escapeHtml(product.name)}</h2>
 			<p class="dialog-price">₱${product.price.toLocaleString()}</p>
 			<label class="dialog-label" for="product-size">Size</label>
-			<select id="product-size" class="size-select">${cartSizes.map((size) => `<option value="${size}">${size}</option>`).join('')}</select>
+			<select id="product-size" class="size-select">${getAvailableSizes(product).map((size) => `<option value="${size}">${size}</option>`).join('')}</select>
 			<label class="dialog-label" for="product-quantity">Quantity</label>
 			<input id="product-quantity" class="quantity-input" type="number" min="1" max="${product.stock}" value="1">
 			<button class="button button-primary button-block confirm-add" type="button">Add to cart</button>
@@ -430,14 +436,28 @@ if (window.location.pathname.endsWith('cart.html')) {
 		cartContent.innerHTML = `
 			<div class="cart-page-header"><div><p class="eyebrow"><span></span>Your selection</p><h1 id="cart-title">Your cart</h1></div><p>${cart.length} product${cart.length === 1 ? '' : 's'} selected</p></div>
 			<div class="cart-page-layout">
-				<div class="cart-page-items">${cart.map((item, index) => `
-					<article class="cart-page-item">
-						<div class="cart-page-image" role="img" aria-label="${escapeHtml(item.name)} image">${escapeHtml(item.mark)}</div>
-						<div class="cart-page-item-info"><div><p class="product-category">${escapeHtml(item.category)}</p><h2>${escapeHtml(item.name)}</h2><p class="cart-page-size">Size: ${escapeHtml(item.size)}</p></div><button class="cart-item-remove" type="button" data-remove-index="${index}">Remove</button></div>
-						<div class="cart-page-item-bottom"><div class="quantity-control"><button type="button" aria-label="Decrease quantity" data-change-index="${index}" data-change="-1">−</button><span>${item.quantity}</span><button type="button" aria-label="Increase quantity" data-change-index="${index}" data-change="1">+</button></div><strong>₱${(item.price * item.quantity).toLocaleString()}</strong></div>
-					</article>`).join('')}</div>
+				<div class="cart-page-items">${cart.map((item, index) => {
+					const product = catalogProducts.find((catalogItem) => catalogItem.id === item.id) || null;
+					const availableSizes = getAvailableSizes(product);
+					return `
+						<article class="cart-page-item">
+							<div class="cart-page-image" role="img" aria-label="${escapeHtml(item.name)} image">${escapeHtml(item.mark)}</div>
+							<div class="cart-page-item-info"><div><p class="product-category">${escapeHtml(item.category)}</p><h2>${escapeHtml(item.name)}</h2><div class="cart-page-size-field"><label for="cart-size-${index}">Size</label><select id="cart-size-${index}" class="cart-size-select" data-size-index="${index}" aria-label="Change size for ${escapeHtml(item.name)}">${availableSizes.map((size) => `<option value="${size}" ${size === item.size ? 'selected' : ''}>${size}</option>`).join('')}</select></div></div><button class="cart-item-remove" type="button" data-remove-index="${index}">Remove</button></div>
+							<div class="cart-page-item-bottom"><div class="quantity-control"><button type="button" aria-label="Decrease quantity" data-change-index="${index}" data-change="-1">−</button><span>${item.quantity}</span><button type="button" aria-label="Increase quantity" data-change-index="${index}" data-change="1">+</button></div><strong>₱${(item.price * item.quantity).toLocaleString()}</strong></div>
+						</article>`;
+				}).join('')}</div>
 				<aside class="cart-page-summary"><h2>Order summary</h2><div class="cart-summary-row"><span>Items</span><span>${cart.reduce((sum, item) => sum + item.quantity, 0)}</span></div><div class="cart-summary-row total"><span>Total</span><span>₱${total.toLocaleString()}</span></div><button class="button button-primary button-block" type="button" data-reservation>Proceed to Reservation <span aria-hidden="true">&rarr;</span></button><p class="summary-note">Reservation details will be collected in the next step.</p></aside>
 			</div>`;
+
+		cartContent.querySelectorAll('.cart-size-select').forEach((select) => {
+			select.addEventListener('change', (event) => {
+				const item = cart[Number(event.target.dataset.sizeIndex)];
+				if (!item) return;
+				item.size = event.target.value;
+				saveCart(cart);
+				renderCartPage();
+			});
+		});
 
 		cartContent.querySelectorAll('[data-change-index]').forEach((button) => {
 			button.addEventListener('click', () => {

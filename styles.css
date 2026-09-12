@@ -1645,6 +1645,30 @@ h2 em {
 	font-size: 12px;
 }
 
+.cart-page-size-field {
+	display: grid;
+	gap: 6px;
+	min-width: 110px;
+}
+
+.cart-page-size-field label {
+	color: var(--brown-soft);
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
+.cart-size-select {
+	width: 100%;
+	padding: 8px 10px;
+	border: 1px solid var(--line);
+	border-radius: 6px;
+	background: var(--white);
+	color: var(--brown);
+	font: inherit;
+}
+
 .cart-page-item-bottom {
 	display: grid;
 	justify-items: end;
