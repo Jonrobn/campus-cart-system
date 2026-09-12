@@ -10,7 +10,7 @@ const pageContent = {
 	navigation: [
 		{ label: 'Home', href: 'index.html', active: true },
 		{ label: 'Catalog', href: 'catalog.html' },
-		{ label: 'My Reservations', href: '#footer' }
+		{ label: 'My Reservations', href: 'reservations.html' }
 	],
 	announcements: [
 		'NEW P.E STOCK AVAILABLE',
@@ -69,7 +69,7 @@ function renderNavigation() {
 		</button>
 		<nav class="site-nav" id="site-navigation" aria-label="Primary navigation">
 			${pageContent.navigation.map((link) => {
-				const isActive = currentPage === 'catalog.html' ? link.href === 'catalog.html' : link.href === 'index.html' && currentPage === 'index.html';
+				const isActive = link.href === currentPage;
 				return `<a class="${isActive ? 'active' : ''}" href="${link.href}">${link.label}</a>`;
 			}).join('')}
 		</nav>
@@ -127,6 +127,7 @@ const catalogProducts = [
 ];
 
 const CART_STORAGE_KEY = 'campusCart';
+const RESERVATIONS_STORAGE_KEY = 'campusReservations';
 const cartSizes = ['XS', 'S', 'M', 'L', 'XL'];
 
 const catalogState = {
@@ -155,6 +156,28 @@ function getCart() {
 function saveCart(cart) {
 	localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cart));
 	updateCartCount();
+}
+
+function getReservations() {
+	try {
+		const savedReservations = JSON.parse(localStorage.getItem(RESERVATIONS_STORAGE_KEY));
+		return Array.isArray(savedReservations) ? savedReservations : [];
+	} catch (error) {
+		return [];
+	}
+}
+
+function saveReservation(cart) {
+	const reservations = getReservations();
+	const reservation = {
+		id: `CW-${Date.now().toString().slice(-6)}`,
+		date: new Date().toISOString(),
+		status: 'Reserved',
+		items: cart.map((item) => ({ ...item }))
+	};
+	reservations.unshift(reservation);
+	localStorage.setItem(RESERVATIONS_STORAGE_KEY, JSON.stringify(reservations));
+	return reservation;
 }
 
 function updateCartCount() {
@@ -431,10 +454,52 @@ if (window.location.pathname.endsWith('cart.html')) {
 				renderCartPage();
 			});
 		});
-		cartContent.querySelector('[data-reservation]')?.addEventListener('click', () => showToast('Reservation is coming soon.'));
+		cartContent.querySelector('[data-reservation]')?.addEventListener('click', () => {
+			saveReservation(cart);
+			saveCart([]);
+			window.location.href = 'reservations.html';
+		});
 	}
 
 	renderCartPage();
+}
+
+if (window.location.pathname.endsWith('reservations.html')) {
+	const reservationsContent = document.getElementById('reservations-page-content');
+
+	function formatReservationDate(date) {
+		return new Intl.DateTimeFormat('en-PH', {
+			dateStyle: 'medium',
+			timeStyle: 'short'
+		}).format(new Date(date));
+	}
+
+	function renderReservationsPage() {
+		if (!reservationsContent) return;
+		const reservations = getReservations();
+
+		if (!reservations.length) {
+			reservationsContent.innerHTML = `
+				<div class="reservations-page-header"><div><p class="eyebrow"><span></span>CampusWear account</p><h1 id="reservations-title">My reservations</h1></div></div>
+			<div class="reservations-empty"><div class="empty-cart-mark">C</div><h2>No reservations yet</h2><p>Your reserved school essentials will appear here once you complete a reservation.</p><a class="button button-primary" href="catalog.html">Browse catalog <span aria-hidden="true">&rarr;</span></a></div>`;
+			return;
+		}
+
+		reservationsContent.innerHTML = `
+			<div class="reservations-page-header"><div><p class="eyebrow"><span></span>CampusWear account</p><h1 id="reservations-title">My reservations</h1></div><p>${reservations.length} reservation${reservations.length === 1 ? '' : 's'} saved</p></div>
+			<div class="reservation-list">${reservations.map((reservation) => {
+				const itemCount = reservation.items.reduce((sum, item) => sum + item.quantity, 0);
+				const total = reservation.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+				return `<article class="reservation-card">
+					<div class="reservation-head"><div><p class="reservation-id">Reservation ID <span>${escapeHtml(reservation.id)}</span></p><p class="reservation-date">${escapeHtml(formatReservationDate(reservation.date))}</p></div><span class="reservation-status status-${reservation.status.toLowerCase().replace(/ /g, '-')}" aria-label="Status: ${escapeHtml(reservation.status)}">${escapeHtml(reservation.status)}</span></div>
+					<div class="reservation-items">${reservation.items.map((item) => `<div class="reservation-item"><span><strong>${escapeHtml(item.name)}</strong><small>Size: ${escapeHtml(item.size)}</small></span><span>${item.quantity} &times; ₱${item.price.toLocaleString()}</span></div>`).join('')}</div>
+					<div class="reservation-meta"><span>${itemCount} item${itemCount === 1 ? '' : 's'}</span><span>Sizes and quantities shown above</span></div>
+					<div class="reservation-total"><span>Total amount</span><span>₱${total.toLocaleString()}</span></div>
+				</article>`;
+			}).join('')}</div>`;
+	}
+
+	renderReservationsPage();
 }
 
 
