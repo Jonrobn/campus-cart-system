@@ -118,7 +118,7 @@ function renderBenefits() {
 }
 
 // CATALOG DATA
-const catalogProducts = [
+const defaultCatalogProducts = [
 	{ id: 1, name: 'School Uniform', category: 'Uniforms', price: 1200, stock: 12, badge: '', mark: 'SU', sizes: ['XS', 'S', 'M', 'L', 'XL'] },
 	{ id: 2, name: 'Jersey', category: 'Athletics', price: 400, stock: 8, badge: 'Limited', mark: 'JR', sizes: ['S', 'M', 'L', 'XL'] },
 	{ id: 3, name: 'ID Lace', category: 'Accessories', price: 150, stock: 20, badge: '', mark: 'ID', sizes: ['One Size'] },
@@ -128,12 +128,100 @@ const catalogProducts = [
 
 const CART_STORAGE_KEY = 'campusCart';
 const RESERVATIONS_STORAGE_KEY = 'campusReservations';
+const PRODUCTS_STORAGE_KEY = 'campusProducts';
+const RESERVATION_NOTICE_KEY = 'campusReservationNotice';
 
 function getAvailableSizes(product) {
 	if (Array.isArray(product?.sizes) && product.sizes.length) {
 		return product.sizes;
 	}
 	return ['XS', 'S', 'M', 'L', 'XL'];
+}
+
+function buildSizeStock(product) {
+	const sizes = getAvailableSizes(product);
+	const stockTotal = Math.max(0, Number(product?.stock) || 0);
+	const sizeStock = {};
+
+	if (!sizes.length) {
+		sizeStock['One Size'] = stockTotal;
+		return sizeStock;
+	}
+
+	let remaining = stockTotal;
+	for (let index = 0; index < sizes.length; index += 1) {
+		const size = sizes[index];
+		if (index === sizes.length - 1) {
+			sizeStock[size] = remaining;
+		} else {
+			const share = Math.max(0, Math.floor(remaining / (sizes.length - index)));
+			sizeStock[size] = share;
+			remaining -= share;
+		}
+	}
+
+	return sizeStock;
+}
+
+function normalizeProduct(product) {
+	if (!product) return null;
+	const sizes = getAvailableSizes(product);
+	const sizeStock = {};
+
+	sizes.forEach((size) => {
+		const savedValue = Number(product.sizeStock && product.sizeStock[size]);
+		sizeStock[size] = Number.isFinite(savedValue) && savedValue >= 0 ? savedValue : 0;
+	});
+
+	if (!sizes.length) {
+		const savedValue = Number(product.sizeStock && product.sizeStock['One Size']);
+		sizeStock['One Size'] = Number.isFinite(savedValue) && savedValue >= 0 ? savedValue : Math.max(0, Number(product.stock) || 0);
+	}
+
+	const hasAnySizeValues = Object.values(sizeStock).some((value) => Number(value) > 0);
+	if (!hasAnySizeValues && Number(product.stock) > 0) {
+		Object.assign(sizeStock, buildSizeStock(product));
+	}
+
+	const totalStock = Object.values(sizeStock).reduce((sum, value) => sum + (Number(value) || 0), 0);
+	product.stock = totalStock > 0 ? totalStock : Math.max(0, Number(product.stock) || 0);
+	product.sizeStock = sizeStock;
+	return product;
+}
+
+function getCatalogProducts() {
+	try {
+		const savedCatalog = JSON.parse(localStorage.getItem(PRODUCTS_STORAGE_KEY));
+		const baseCatalog = Array.isArray(savedCatalog) && savedCatalog.length ? savedCatalog : defaultCatalogProducts;
+		return baseCatalog.map((product) => normalizeProduct({ ...product }));
+	} catch (error) {
+		return defaultCatalogProducts.map((product) => normalizeProduct({ ...product }));
+	}
+}
+
+const catalogProducts = getCatalogProducts();
+
+function saveCatalogProducts() {
+	const savedProducts = catalogProducts.map((product) => {
+		const normalizedProduct = normalizeProduct({ ...product });
+		return {
+			...normalizedProduct,
+			sizeStock: { ...normalizedProduct.sizeStock }
+		};
+	});
+	localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(savedProducts));
+}
+
+function getProductStock(product) {
+	const normalizedProduct = normalizeProduct(product);
+	return normalizedProduct ? normalizedProduct.stock : 0;
+}
+
+function getSizeStock(product, size) {
+	const normalizedProduct = normalizeProduct(product);
+	if (!normalizedProduct) return 0;
+	const sizeKey = size || getAvailableSizes(normalizedProduct)[0] || 'One Size';
+	return Number(normalizedProduct.sizeStock[sizeKey]) || 0;
 }
 
 const catalogState = {
@@ -173,6 +261,24 @@ function getReservations() {
 	}
 }
 
+function updateReservationStock(reservation, returnStock = false) {
+	const updatedProducts = catalogProducts.map((product) => normalizeProduct({ ...product }));
+
+	reservation.items.forEach((item) => {
+		const product = updatedProducts.find((catalogItem) => catalogItem.id === item.id);
+		if (!product) return;
+
+		const sizeKey = item.size || getAvailableSizes(product)[0] || 'One Size';
+		const quantity = Number(item.quantity) || 0;
+		const currentStock = Number(product.sizeStock[sizeKey]) || 0;
+		product.sizeStock[sizeKey] = returnStock ? currentStock + quantity : Math.max(0, currentStock - quantity);
+		product.stock = Object.values(product.sizeStock).reduce((sum, value) => sum + (Number(value) || 0), 0);
+	});
+
+	catalogProducts.splice(0, catalogProducts.length, ...updatedProducts);
+	saveCatalogProducts();
+}
+
 function saveReservation(cart) {
 	const reservations = getReservations();
 	const reservation = {
@@ -183,6 +289,7 @@ function saveReservation(cart) {
 	};
 	reservations.unshift(reservation);
 	localStorage.setItem(RESERVATIONS_STORAGE_KEY, JSON.stringify(reservations));
+	updateReservationStock(reservation);
 	return reservation;
 }
 
@@ -194,11 +301,23 @@ function updateCartCount() {
 }
 
 function addToCart(product, size, quantity) {
+	const selectedSize = size || getAvailableSizes(product)[0] || 'One Size';
+	const requestedQuantity = Math.max(1, Number(quantity) || 1);
+	const availableQuantity = getSizeStock(product, selectedSize);
+
+	if (requestedQuantity > availableQuantity) {
+		return false;
+	}
+
 	const cart = getCart();
-	const existingItem = cart.find((item) => item.id === product.id && item.size === size);
+	const existingItem = cart.find((item) => item.id === product.id && item.size === selectedSize);
 
 	if (existingItem) {
-		existingItem.quantity += quantity;
+		const nextTotal = existingItem.quantity + requestedQuantity;
+		if (nextTotal > availableQuantity) {
+			return false;
+		}
+		existingItem.quantity = nextTotal;
 	} else {
 		cart.push({
 			id: product.id,
@@ -206,12 +325,13 @@ function addToCart(product, size, quantity) {
 			category: product.category,
 			mark: product.mark,
 			price: product.price,
-			size,
-			quantity
+			size: selectedSize,
+			quantity: requestedQuantity
 		});
 	}
 
 	saveCart(cart);
+	return true;
 }
 
 function getVisibleCatalogProducts() {
@@ -308,20 +428,45 @@ function openAddToCartDialog(productId) {
 			<label class="dialog-label" for="product-size">Size</label>
 			<select id="product-size" class="size-select">${getAvailableSizes(product).map((size) => `<option value="${size}">${size}</option>`).join('')}</select>
 			<label class="dialog-label" for="product-quantity">Quantity</label>
-			<input id="product-quantity" class="quantity-input" type="number" min="1" max="${product.stock}" value="1">
+			<input id="product-quantity" class="quantity-input" type="number" min="1" value="1">
 			<button class="button button-primary button-block confirm-add" type="button">Add to cart</button>
 		</div>`;
 
 	document.body.appendChild(dialog);
 	const closeDialog = () => dialog.remove();
+	const sizeSelect = dialog.querySelector('.size-select');
+	const quantityInput = dialog.querySelector('.quantity-input');
+
+	const updateQuantityLimit = () => {
+		const selectedSize = sizeSelect.value;
+		const available = getSizeStock(product, selectedSize);
+		quantityInput.max = String(available || 1);
+		const nextValue = Number(quantityInput.value) || 1;
+		quantityInput.value = Math.min(Math.max(1, nextValue), Math.max(1, available || 1));
+	};
+
+	sizeSelect.addEventListener('change', updateQuantityLimit);
+	updateQuantityLimit();
+
 	dialog.querySelector('.cart-dialog-close').addEventListener('click', closeDialog);
 	dialog.addEventListener('click', (event) => {
 		if (event.target === dialog) closeDialog();
 	});
 	dialog.querySelector('.confirm-add').addEventListener('click', () => {
-		const quantityInput = dialog.querySelector('.quantity-input');
-		const quantity = Math.max(1, Math.min(product.stock, Number(quantityInput.value) || 1));
-		addToCart(product, dialog.querySelector('.size-select').value, quantity);
+		const selectedSize = sizeSelect.value;
+		const available = getSizeStock(product, selectedSize);
+		const quantity = Math.max(1, Math.min(available || 1, Number(quantityInput.value) || 1));
+
+		if (available <= 0) {
+			showToast('This item is currently unavailable.');
+			return;
+		}
+
+		if (!addToCart(product, selectedSize, quantity)) {
+			showToast(`Only ${available} available.`);
+			return;
+		}
+
 		closeDialog();
 		showToast(`${product.name} added to cart.`);
 	});
@@ -403,6 +548,32 @@ function showToast(message) {
 	toast.hideTimer = window.setTimeout(() => toast.classList.remove('visible'), 2600);
 }
 
+function showReservationModal({ title, message, confirmText, cancelText, onConfirm }) {
+	const backdrop = document.createElement('div');
+	backdrop.className = 'reservation-modal-backdrop';
+	backdrop.innerHTML = `
+		<div class="reservation-modal" role="dialog" aria-modal="true" aria-labelledby="reservation-modal-title">
+			<p class="eyebrow"><span></span>Reservation</p>
+			<h3 id="reservation-modal-title">${escapeHtml(title)}</h3>
+			<p class="reservation-modal-copy">${escapeHtml(message)}</p>
+			<div class="reservation-modal-actions">
+				<button class="button button-secondary reservation-modal-cancel" type="button">${escapeHtml(cancelText)}</button>
+				<button class="button button-primary reservation-modal-confirm" type="button">${escapeHtml(confirmText)}</button>
+			</div>
+		</div>`;
+
+	document.body.appendChild(backdrop);
+	const closeModal = () => backdrop.remove();
+	backdrop.addEventListener('click', (event) => {
+		if (event.target === backdrop) closeModal();
+	});
+	backdrop.querySelector('.reservation-modal-cancel').addEventListener('click', closeModal);
+	backdrop.querySelector('.reservation-modal-confirm').addEventListener('click', () => {
+		closeModal();
+		if (typeof onConfirm === 'function') onConfirm();
+	});
+}
+
 document.querySelectorAll('[data-action]').forEach((button) => {
 	button.addEventListener('click', function () {
 		if (button.dataset.action === 'cart') {
@@ -429,7 +600,7 @@ if (window.location.pathname.endsWith('cart.html')) {
 		if (!cart.length) {
 			cartContent.innerHTML = `
 				<div class="cart-page-header"><div><p class="eyebrow"><span></span>Your selection</p><h1 id="cart-title">Your cart</h1></div></div>
-				<div class="cart-page-empty"><div class="empty-cart-mark">C</div><h2>Your cart is empty</h2><p>Browse the catalog and add school essentials to get started.</p><a class="button button-primary" href="catalog.html">Browse catalog <span aria-hidden="true">&rarr;</span></a></div>`;
+				<div class="cart-page-empty"><div class="empty-cart-mark">C</div><h2>No items in your cart yet.</h2><p>Browse the catalog and add school essentials to get started.</p><a class="button button-primary" href="catalog.html">Browse catalog <span aria-hidden="true">&rarr;</span></a></div>`;
 			return;
 		}
 
@@ -446,14 +617,26 @@ if (window.location.pathname.endsWith('cart.html')) {
 							<div class="cart-page-item-bottom"><div class="quantity-control"><button type="button" aria-label="Decrease quantity" data-change-index="${index}" data-change="-1">−</button><span>${item.quantity}</span><button type="button" aria-label="Increase quantity" data-change-index="${index}" data-change="1">+</button></div><strong>₱${(item.price * item.quantity).toLocaleString()}</strong></div>
 						</article>`;
 				}).join('')}</div>
-				<aside class="cart-page-summary"><h2>Order summary</h2><div class="cart-summary-row"><span>Items</span><span>${cart.reduce((sum, item) => sum + item.quantity, 0)}</span></div><div class="cart-summary-row total"><span>Total</span><span>₱${total.toLocaleString()}</span></div><button class="button button-primary button-block" type="button" data-reservation>Proceed to Reservation <span aria-hidden="true">&rarr;</span></button><p class="summary-note">Reservation details will be collected in the next step.</p></aside>
+				<aside class="cart-page-summary"><h2>Order summary</h2><div class="cart-summary-row"><span>Items</span><span>${cart.reduce((sum, item) => sum + item.quantity, 0)}</span></div><div class="cart-summary-row total"><span>Total</span><span>₱${total.toLocaleString()}</span></div><div class="cart-actions"><a class="button button-secondary" href="catalog.html">Continue shopping</a><button class="button button-primary button-block" type="button" data-reservation>Proceed to Reservation <span aria-hidden="true">&rarr;</span></button></div><p class="summary-note">Reservation details will be collected in the next step.</p></aside>
 			</div>`;
 
 		cartContent.querySelectorAll('.cart-size-select').forEach((select) => {
 			select.addEventListener('change', (event) => {
 				const item = cart[Number(event.target.dataset.sizeIndex)];
 				if (!item) return;
-				item.size = event.target.value;
+
+				const product = catalogProducts.find((catalogItem) => catalogItem.id === item.id);
+				const previousSize = item.size;
+				const nextSize = event.target.value;
+				const available = getSizeStock(product, nextSize);
+
+				if (available <= 0 || item.quantity > available) {
+					showToast(`Only ${available} available.`);
+					event.target.value = previousSize;
+					return;
+				}
+
+				item.size = nextSize;
 				saveCart(cart);
 				renderCartPage();
 			});
@@ -462,7 +645,18 @@ if (window.location.pathname.endsWith('cart.html')) {
 		cartContent.querySelectorAll('[data-change-index]').forEach((button) => {
 			button.addEventListener('click', () => {
 				const item = cart[Number(button.dataset.changeIndex)];
-				item.quantity = Math.max(1, item.quantity + Number(button.dataset.change));
+				if (!item) return;
+
+				const product = catalogProducts.find((catalogItem) => catalogItem.id === item.id);
+				const nextQuantity = Math.max(1, item.quantity + Number(button.dataset.change));
+				const available = getSizeStock(product, item.size);
+
+				if (nextQuantity > available) {
+					showToast(`Only ${available} available.`);
+					return;
+				}
+
+				item.quantity = nextQuantity;
 				saveCart(cart);
 				renderCartPage();
 			});
@@ -475,9 +669,12 @@ if (window.location.pathname.endsWith('cart.html')) {
 			});
 		});
 		cartContent.querySelector('[data-reservation]')?.addEventListener('click', () => {
-			saveReservation(cart);
+			if (!cart.length) return;
+			const reservation = saveReservation(cart);
 			saveCart([]);
+			localStorage.setItem(RESERVATION_NOTICE_KEY, 'Reservation confirmed.');
 			window.location.href = 'reservations.html';
+			return reservation;
 		});
 	}
 
@@ -494,9 +691,34 @@ if (window.location.pathname.endsWith('reservations.html')) {
 		}).format(new Date(date));
 	}
 
+	function cancelReservation(reservationId) {
+		const reservations = getReservations();
+		const reservation = reservations.find((item) => item.id === reservationId);
+		if (!reservation || reservation.status === 'Cancelled') return;
+
+		showReservationModal({
+			title: 'Cancel reservation?',
+			message: 'Are you sure you want to cancel this reservation?',
+			confirmText: 'Yes, cancel',
+			cancelText: 'Keep it',
+			onConfirm: () => {
+				reservation.status = 'Cancelled';
+				localStorage.setItem(RESERVATIONS_STORAGE_KEY, JSON.stringify(reservations));
+				updateReservationStock(reservation, true);
+				renderReservationsPage();
+				showToast('Reservation cancelled.');
+			}
+		});
+	}
+
 	function renderReservationsPage() {
 		if (!reservationsContent) return;
 		const reservations = getReservations();
+		const noticeMessage = localStorage.getItem(RESERVATION_NOTICE_KEY);
+		if (noticeMessage) {
+			showToast(noticeMessage);
+			localStorage.removeItem(RESERVATION_NOTICE_KEY);
+		}
 
 		if (!reservations.length) {
 			reservationsContent.innerHTML = `
@@ -510,13 +732,21 @@ if (window.location.pathname.endsWith('reservations.html')) {
 			<div class="reservation-list">${reservations.map((reservation) => {
 				const itemCount = reservation.items.reduce((sum, item) => sum + item.quantity, 0);
 				const total = reservation.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+				const isActive = reservation.status !== 'Cancelled';
 				return `<article class="reservation-card">
 					<div class="reservation-head"><div><p class="reservation-id">Reservation ID <span>${escapeHtml(reservation.id)}</span></p><p class="reservation-date">${escapeHtml(formatReservationDate(reservation.date))}</p></div><span class="reservation-status status-${reservation.status.toLowerCase().replace(/ /g, '-')}" aria-label="Status: ${escapeHtml(reservation.status)}">${escapeHtml(reservation.status)}</span></div>
 					<div class="reservation-items">${reservation.items.map((item) => `<div class="reservation-item"><span><strong>${escapeHtml(item.name)}</strong><small>Size: ${escapeHtml(item.size)}</small></span><span>${item.quantity} &times; ₱${item.price.toLocaleString()}</span></div>`).join('')}</div>
 					<div class="reservation-meta"><span>${itemCount} item${itemCount === 1 ? '' : 's'}</span><span>Sizes and quantities shown above</span></div>
 					<div class="reservation-total"><span>Total amount</span><span>₱${total.toLocaleString()}</span></div>
+					${isActive ? `<div class="reservation-actions"><button class="reservation-cancel-button" type="button" data-cancel-id="${escapeHtml(reservation.id)}">Cancel Reservation</button></div>` : ''}
 				</article>`;
 			}).join('')}</div>`;
+
+		reservationsContent.querySelectorAll('[data-cancel-id]').forEach((button) => {
+			button.addEventListener('click', () => {
+				cancelReservation(button.dataset.cancelId);
+			});
+		});
 	}
 
 	renderReservationsPage();
